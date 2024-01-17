@@ -84,7 +84,7 @@ func (ms *Modules) Read(name string) error {
 // Note: If an error is returned, valid modules might still have been added to
 // the Modules cache.
 func (ms *Modules) Parse(data, name string) error {
-	ss, err := Parse(data, name)
+	ss, err := Parse(data, name, ms.ParseOptions.StatementOptions)
 	if err != nil {
 		return err
 	}
