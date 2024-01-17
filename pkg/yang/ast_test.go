@@ -519,7 +519,7 @@ alt_node the_node {
 		typeDict := newTypeDictionary()
 		initTypes(reflect.TypeOf(&meta{}))
 
-		ast, err := buildASTWithTypeDict(ss[0], typeDict)
+		ast, err := buildASTWithTypeDict(ss[0], typeDict, nil)
 		switch {
 		case err == nil && tt.err == "":
 			if s := tt.out.checkEqual(ast); s != "" {
