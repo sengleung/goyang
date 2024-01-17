@@ -31,6 +31,8 @@ type Options struct {
 	DeviateOptions DeviateOptions
 	// StatementOptions contains options for how statements are handled.
 	StatementOptions StatementOptions
+	// ModuleOptions contains options for how modules are handled.
+	ModuleOptions ModuleOptions
 }
 
 // DeviateOptions contains options for how deviations are handled.
@@ -103,4 +105,50 @@ func (opts *statementOptions) includeStatement(keyword string) bool {
 	}
 	_, found := opts.excludeStatements[keyword]
 	return !found
+}
+
+// ModuleOptions contains options for how modules are handled.
+type ModuleOptions struct {
+	// IncludeOnlySources is a list of statement keywords that link the Statement
+	// to the Source field of the module Node. Statements not in the keywords list
+	// are not linked. If the list is empty, all statements are linked.
+	IncludeOnlySources []string
+}
+
+// IsModuleOpt ensures that ModuleOptions satisfies the ModuleOpt interface.
+func (ModuleOptions) IsModuleOpt() {}
+
+// ModuleOpt is an interface that can be used in function arguments.
+type ModuleOpt interface {
+	IsModuleOpt()
+}
+
+// moduleOptions contains options for how modules are handled.
+type moduleOptions struct {
+	includeOnlySources map[string]struct{}
+}
+
+func newModuleOptions() *moduleOptions {
+	return &moduleOptions{
+		includeOnlySources: make(map[string]struct{}),
+	}
+}
+
+func (opts *moduleOptions) addIncludeOnlySources(moduleOpts ...ModuleOpt) {
+	for _, o := range moduleOpts {
+		if opt, ok := o.(ModuleOptions); ok {
+			for _, keyword := range opt.IncludeOnlySources {
+				opts.includeOnlySources[keyword] = struct{}{}
+			}
+		}
+	}
+}
+
+// setSourceStatement returns true if the source statement should be set.
+func (opts *moduleOptions) setSourceStatement(keyword string) bool {
+	if opts == nil || len(opts.includeOnlySources) == 0 {
+		return true
+	}
+	_, found := opts.includeOnlySources[keyword]
+	return found
 }

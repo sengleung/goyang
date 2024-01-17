@@ -88,8 +88,10 @@ func (ms *Modules) Parse(data, name string) error {
 	if err != nil {
 		return err
 	}
+	opts := newModuleOptions()
+	opts.addIncludeOnlySources(ms.ParseOptions.ModuleOptions)
 	for _, s := range ss {
-		n, err := buildASTWithTypeDict(s, ms.typeDict)
+		n, err := buildASTWithTypeDict(s, ms.typeDict, opts)
 		if err != nil {
 			return err
 		}

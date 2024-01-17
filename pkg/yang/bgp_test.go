@@ -33,7 +33,7 @@ func TestBGP(t *testing.T) {
 	}
 	typeDict := newTypeDictionary()
 	initTypes(reflect.TypeOf(&meta{}))
-	if _, err := buildASTWithTypeDict(ss[0], typeDict); err != nil {
+	if _, err := buildASTWithTypeDict(ss[0], typeDict, nil); err != nil {
 		t.Fatal(err)
 	}
 }

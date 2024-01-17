@@ -43,7 +43,7 @@ func init() {
 type yangStatement struct {
 	// funcs is the map of YANG field names to the function that populates
 	// the statement into the AST node.
-	funcs map[string]func(*Statement, reflect.Value, reflect.Value, *typeDictionary) error
+	funcs map[string]func(*Statement, reflect.Value, reflect.Value, *typeDictionary, *moduleOptions) error
 	// required is a list of fields that must be present in the statement.
 	required []string
 	// sRequired maps a statement name to a list of required sub-field
@@ -59,7 +59,8 @@ type yangStatement struct {
 // newYangStatement creates a new yangStatement.
 func newYangStatement() *yangStatement {
 	return &yangStatement{
-		funcs:     make(map[string]func(*Statement, reflect.Value, reflect.Value, *typeDictionary) error),
+		funcs: make(map[string]func(*Statement, reflect.Value, reflect.Value, *typeDictionary,
+			*moduleOptions) error),
 		sRequired: make(map[string][]string),
 	}
 }
@@ -102,8 +103,8 @@ var aliases = map[string]string{
 // buildASTWithTypeDict creates an AST for the input statement, and returns its
 // root node. It also takes as input a type dictionary into which any
 // encountered typedefs within the statement are cached.
-func buildASTWithTypeDict(stmt *Statement, types *typeDictionary) (Node, error) {
-	v, err := build(stmt, nilValue, types)
+func buildASTWithTypeDict(stmt *Statement, types *typeDictionary, opts *moduleOptions) (Node, error) {
+	v, err := build(stmt, nilValue, types, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +116,8 @@ func buildASTWithTypeDict(stmt *Statement, types *typeDictionary) (Node, error) 
 // encountered typedefs within the statement are cached. The type of value
 // returned depends on the keyword in stmt (see yang.go). It returns an error
 // if it cannot build the statement into its corresponding Node type.
-func build(stmt *Statement, parent reflect.Value, types *typeDictionary) (v reflect.Value, err error) {
+func build(stmt *Statement, parent reflect.Value, types *typeDictionary, opts *moduleOptions) (
+	v reflect.Value, err error) {
 	defer func() {
 		// If we are returning a real Node then call addTypedefs
 		// if the node possibly contains typedefs.
@@ -145,14 +147,16 @@ func build(stmt *Statement, parent reflect.Value, types *typeDictionary) (v refl
 
 	if fn := y.funcs["Name"]; fn != nil {
 		// Name uses stmt directly.
-		if err := fn(stmt, v, parent, types); err != nil {
+		if err := fn(stmt, v, parent, types, opts); err != nil {
 			return nilValue, err
 		}
 	}
 	if fn := y.funcs["Statement"]; fn != nil {
 		// Statement uses stmt directly.
-		if err := fn(stmt, v, parent, types); err != nil {
-			return nilValue, err
+		if opts.setSourceStatement(stmt.Keyword) {
+			if err := fn(stmt, v, parent, types, opts); err != nil {
+				return nilValue, err
+			}
 		}
 	}
 	if fn := y.funcs["Parent"]; fn != nil {
@@ -161,7 +165,7 @@ func build(stmt *Statement, parent reflect.Value, types *typeDictionary) (v refl
 		// parent.IsValid will true if parent references a concrete type
 		// (even if it is nil).
 		if parent.IsValid() {
-			if err := fn(stmt, v, parent, types); err != nil {
+			if err := fn(stmt, v, parent, types, opts); err != nil {
 				return nilValue, err
 			}
 		}
@@ -175,7 +179,7 @@ func build(stmt *Statement, parent reflect.Value, types *typeDictionary) (v refl
 		switch {
 		case fn != nil:
 			// Normal case, the keyword is known.
-			if err := fn(ss, v, parent, types); err != nil {
+			if err := fn(ss, v, parent, types, opts); err != nil {
 				return nilValue, err
 			}
 		case len(strings.Split(ss.Keyword, ":")) == 2:
@@ -355,7 +359,7 @@ func initTypes(at reflect.Type) {
 		// Create a function, fn, that will build the field from a
 		// Statement.  These functions are used when actually making
 		// an AST from a Statement Tree.
-		var fn func(*Statement, reflect.Value, reflect.Value, *typeDictionary) error
+		var fn func(*Statement, reflect.Value, reflect.Value, *typeDictionary, *moduleOptions) error
 
 		// The field can be a pointer, a slice or a string
 		switch f.Type.Kind() {
@@ -367,7 +371,7 @@ func initTypes(at reflect.Type) {
 			if name != "Parent" {
 				panic(fmt.Sprintf("interface field is %s, not Parent", name))
 			}
-			fn = func(stmt *Statement, v, p reflect.Value, types *typeDictionary) error {
+			fn = func(stmt *Statement, v, p reflect.Value, types *typeDictionary, _ *moduleOptions) error {
 				if !p.Type().Implements(nodeType) {
 					panic(fmt.Sprintf("invalid interface: %v", f.Type.Kind()))
 				}
@@ -379,7 +383,7 @@ func initTypes(at reflect.Type) {
 			if name != "Name" {
 				panic(fmt.Sprintf("string field is %s, not Name", name))
 			}
-			fn = func(stmt *Statement, v, _ reflect.Value, types *typeDictionary) error {
+			fn = func(stmt *Statement, v, _ reflect.Value, types *typeDictionary, _ *moduleOptions) error {
 				if v.Type() != at {
 					panic(fmt.Sprintf("got type %v, want %v", v.Type(), at))
 				}
@@ -399,7 +403,7 @@ func initTypes(at reflect.Type) {
 				if name != "Statement" {
 					panic(fmt.Sprintf("string field is %s, not Statement", name))
 				}
-				fn = func(stmt *Statement, v, _ reflect.Value, types *typeDictionary) error {
+				fn = func(stmt *Statement, v, _ reflect.Value, types *typeDictionary, _ *moduleOptions) error {
 					if v.Type() != at {
 						panic(fmt.Sprintf("got type %v, want %v", v.Type(), at))
 					}
@@ -412,7 +416,7 @@ func initTypes(at reflect.Type) {
 			// Make sure our field type is also setup.
 			descend(name, f.Type)
 
-			fn = func(stmt *Statement, v, p reflect.Value, types *typeDictionary) error {
+			fn = func(stmt *Statement, v, p reflect.Value, types *typeDictionary, opts *moduleOptions) error {
 				if v.Type() != at {
 					panic(fmt.Sprintf("given type %s, need type %s", v.Type(), at))
 				}
@@ -422,7 +426,7 @@ func initTypes(at reflect.Type) {
 				}
 
 				// Use build to build the value for this field.
-				sv, err := build(stmt, v, types)
+				sv, err := build(stmt, v, types, opts)
 				if err != nil {
 					return err
 				}
@@ -441,11 +445,11 @@ func initTypes(at reflect.Type) {
 				panic(fmt.Sprintf("invalid type: %v", st.Kind()))
 			case reflect.Ptr:
 				descend(name, st)
-				fn = func(stmt *Statement, v, p reflect.Value, types *typeDictionary) error {
+				fn = func(stmt *Statement, v, p reflect.Value, types *typeDictionary, opts *moduleOptions) error {
 					if v.Type() != at {
 						panic(fmt.Sprintf("given type %s, need type %s", v.Type(), at))
 					}
-					sv, err := build(stmt, v, types)
+					sv, err := build(stmt, v, types, opts)
 					if err != nil {
 						return err
 					}
