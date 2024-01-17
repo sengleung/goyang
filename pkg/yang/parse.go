@@ -42,6 +42,9 @@ type parser struct {
 	// hitBrace is updated with the file, line, and column of the brace's
 	// location.
 	hitBrace *Statement
+
+	// opts contains options for parsing statements.
+	opts *statementOptions
 }
 
 // Statement is a generic YANG statement that may have sub-statements.
@@ -153,14 +156,16 @@ var ignoreMe = &Statement{}
 // the file name the input was read from).  If one more more errors are
 // encountered, nil and an error are returned.  The error's text includes all
 // errors encountered.
-func Parse(input, path string) ([]*Statement, error) {
+func Parse(input, path string, statementOpts ...StatementOpt) ([]*Statement, error) {
 	var statements []*Statement
 	p := &parser{
 		lex:      newLexer(input, path),
 		errout:   &bytes.Buffer{},
 		hitBrace: &Statement{},
+		opts:     newStatementOptions(),
 	}
 	p.lex.errout = p.errout
+	p.opts.addExcludeStatements(statementOpts...)
 Loop:
 	for {
 		switch ns := p.nextStatement(); ns {
@@ -308,7 +313,9 @@ func (p *parser) nextStatement() *Statement {
 			case p.hitBrace:
 				return s
 			default:
-				s.statements = append(s.statements, ns)
+				if p.opts.includeStatement(ns.Keyword) {
+					s.statements = append(s.statements, ns)
+				}
 			}
 		}
 	default:

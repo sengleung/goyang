@@ -29,6 +29,8 @@ type Options struct {
 	StoreUses bool
 	// DeviateOptions contains options for how deviations are handled.
 	DeviateOptions DeviateOptions
+	// StatementOptions contains options for how statements are handled.
+	StatementOptions StatementOptions
 }
 
 // DeviateOptions contains options for how deviations are handled.
@@ -56,4 +58,49 @@ func hasIgnoreDeviateNotSupported(opts []DeviateOpt) bool {
 		}
 	}
 	return false
+}
+
+// StatementOptions contains options for how statements are handled.
+type StatementOptions struct {
+	// ExcludeStatements is a list of statement keywords that are ignored
+	// when parsing Statements.
+	ExcludeStatements []string
+}
+
+// IsStatementOpt ensures that StatementOptions satisfies the StatementOpt interface.
+func (StatementOptions) IsStatementOpt() {}
+
+// StatementOpt is an interface that can be used in function arguments.
+type StatementOpt interface {
+	IsStatementOpt()
+}
+
+// statementOptions contains options for how statements are handled.
+type statementOptions struct {
+	excludeStatements map[string]struct{}
+}
+
+func newStatementOptions() *statementOptions {
+	return &statementOptions{
+		excludeStatements: make(map[string]struct{}),
+	}
+}
+
+func (opts *statementOptions) addExcludeStatements(statementOpts ...StatementOpt) {
+	for _, o := range statementOpts {
+		if opt, ok := o.(StatementOptions); ok {
+			for _, keyword := range opt.ExcludeStatements {
+				opts.excludeStatements[keyword] = struct{}{}
+			}
+		}
+	}
+}
+
+// includeStatement returns true if the statement should be included.
+func (opts *statementOptions) includeStatement(keyword string) bool {
+	if opts == nil || len(opts.excludeStatements) == 0 {
+		return true
+	}
+	_, found := opts.excludeStatements[keyword]
+	return !found
 }
