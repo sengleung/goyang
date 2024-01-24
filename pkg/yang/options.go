@@ -67,6 +67,9 @@ type StatementOptions struct {
 	// ExcludeStatements is a list of statement keywords that are ignored
 	// when parsing Statements.
 	ExcludeStatements []string
+	// LatestRevisionOnly indicates whether to parse the latest revision statement
+	// only and ignore the previous revision statements.
+	LatestRevisionOnly bool
 }
 
 // IsStatementOpt ensures that StatementOptions satisfies the StatementOpt interface.
@@ -79,7 +82,8 @@ type StatementOpt interface {
 
 // statementOptions contains options for how statements are handled.
 type statementOptions struct {
-	excludeStatements map[string]struct{}
+	excludeStatements  map[string]struct{}
+	latestRevisionOnly bool
 }
 
 func newStatementOptions() *statementOptions {
@@ -94,6 +98,14 @@ func (opts *statementOptions) addExcludeStatements(statementOpts ...StatementOpt
 			for _, keyword := range opt.ExcludeStatements {
 				opts.excludeStatements[keyword] = struct{}{}
 			}
+		}
+	}
+}
+
+func (opts *statementOptions) setLatestRevisionOnly(statementOpts ...StatementOpt) {
+	for _, o := range statementOpts {
+		if opt, ok := o.(StatementOptions); ok {
+			opts.latestRevisionOnly = opt.LatestRevisionOnly
 		}
 	}
 }
