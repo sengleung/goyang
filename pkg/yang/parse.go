@@ -43,6 +43,9 @@ type parser struct {
 	// location.
 	hitBrace *Statement
 
+	// latestRevisionParsed indicates whether the latest revision statement was parsed.
+	latestRevisionParsed bool
+
 	// opts contains options for parsing statements.
 	opts *statementOptions
 }
@@ -166,6 +169,7 @@ func Parse(input, path string, statementOpts ...StatementOpt) ([]*Statement, err
 	}
 	p.lex.errout = p.errout
 	p.opts.addExcludeStatements(statementOpts...)
+	p.opts.setLatestRevisionOnly(statementOpts...)
 Loop:
 	for {
 		switch ns := p.nextStatement(); ns {
@@ -313,6 +317,13 @@ func (p *parser) nextStatement() *Statement {
 			case p.hitBrace:
 				return s
 			default:
+				if p.opts.latestRevisionOnly && ns.Keyword == "revision" {
+					if !p.latestRevisionParsed {
+						s.statements = append(s.statements, ns)
+						p.latestRevisionParsed = true
+					}
+					continue
+				}
 				if p.opts.includeStatement(ns.Keyword) {
 					s.statements = append(s.statements, ns)
 				}
