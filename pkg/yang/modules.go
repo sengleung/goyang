@@ -466,3 +466,10 @@ func (ms *Modules) ClearEntryCache() {
 	defer ms.entryCacheMu.Unlock()
 	ms.entryCache = map[Node]*Entry{}
 }
+
+// SetEntryCache sets the entryCache used by the ToEntry function.
+func (ms *Modules) SetEntryCache(entryCache map[Node]*Entry) {
+	ms.entryCacheMu.Lock()
+	defer ms.entryCacheMu.Unlock()
+	ms.entryCache = entryCache
+}
